@@ -1,0 +1,81 @@
+JSON is a text format for storing and transporting data, Both JSON and XML can be used to receive data from a web server
+
+
+JavaScript has a built in function for converting JSON strings into JavaScript objects:JSON.parse()
+When receiving data from a web server, the data is always a string.
+Parse the data with JSON.parse(), and the data becomes a JavaScript object.
+const obj = {
+    name: "Alice",
+    age: 25,
+    isStudent: false,
+    hobbies: ["reading", "gaming", "hiking"]
+  };
+const jsonString = JSON.stringify(obj);
+console.log(jsonString);
+'{"name":"Alice","age":25,"isStudent":false,"hobbies":["reading","gaming","hiking"]}'
+
+
+JavaScript also has a built in function for converting an object into a JSON string:
+JSON.stringify()
+const jsonString = '{"name":"Alice","age":25,"isStudent":false,"hobbies":["reading","gaming","hiking"]}';
+const obj = JSON.parse(jsonString);
+console.log(obj);
+{
+  name: "Alice",
+  age: 25,
+  isStudent: false,
+  hobbies: ["reading", "gaming", "hiking"]
+}
+
+
+In JSON, keys must be strings, written with double quotes:
+{"name":"John"}
+{"employee":{"name":"John", "age":30, "city":"New York"}}
+{"employees":["John", "Anna", "Peter"]}
+{"sale":true}
+JSON object literals are surrounded by curly braces {}.
+JSON object literals contains key/value pairs.
+Keys and values are separated by a colon.
+Keys must be strings, and values must be a valid JSON data type:
+string, number, object, array, boolean, null
+Each key/value pair is separated by a comma.
+
+
+Accessing Object Values
+const myJSON = '{"name":"John", "age":30, "car":null}';
+const myObj = JSON.parse(myJSON);
+x = myObj.name;
+
+JSON TO PYTHON:
+
+import json
+
+# some JSON:
+x =  '{ "name":"John", "age":30, "city":"New York"}'
+
+# parse x:
+y = json.loads(x)
+
+# the result is a Python dictionary:
+print(y["age"])
+
+PYTHON TO JSON:
+
+import json
+
+# a Python object (dict):
+x = {
+  "name": "John",
+  "age": 30,
+  "city": "New York"
+}
+
+# convert into JSON:
+y = json.dumps(x)
+
+# the result is a JSON string:
+print(y)
+
+FORMATTING
+json.dumps(x, indent=4, sort_keys=True,separators=(". ", " = "))
+
