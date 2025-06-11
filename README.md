@@ -1,1 +1,1 @@
-# 🚀 Basic JSON, Python Fundamentals, and Project Insights! 🐍📖
+# 🚀 Basic JSON, Basic Logging, Python Fundamentals, and Project Insights! 🐍📖

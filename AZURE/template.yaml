@@ -1,0 +1,131 @@
+# Python package
+
+# Create and test a Python package on multiple Python versions.
+# Add steps that analyze code, save the dist with the build record, publish to a PyPI-compatible index, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/python
+# Python package
+
+# Create and test a Python package on multiple Python versions.
+# Add steps that analyze code, save the dist with the build record, publish to a PyPI-compatible index, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/python
+# name: $(BuildDefinitionName)_$(date:yyyyMMdd)$(rev:.r) #parameterizing the build name
+  
+trigger:
+- develop
+
+parameters:
+  - name: majorVersion
+    displayName: Major Version
+    type: string
+    default: '1'
+  - name: minorVersion
+    displayName: Minor Version
+    type: string
+    default: '0'
+  - name: patchVersion
+    displayName: patch Version
+    type: string
+    default: '0'
+
+variables:
+    majorVersion: ${{ parameters.majorVersion }}
+    minorVersion: ${{ parameters.minorVersion }}
+    patchVersion: $[counter(variables['patchVersion'], 0)]
+    artifactName: 'claim-submission-business-service-api'
+    veracodeRunDate: $[ format('{0:yyyy}{0:MM}{0:dd}{0:HH}{0:mm}{0:ss}', pipeline.startTime) ] # variable used for scan name
+
+pool:
+  vmImage: ubuntu-latest
+strategy:
+  matrix:
+    Python311:
+      python.version: '3.11'
+
+steps:
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '$(python.version)'
+  displayName: 'Use Python $(python.version)'
+
+- script: |
+    python -m pip install --upgrade pip
+    pip install --platform manylinux2014_x86_64 --implementation cp --only-binary=:all: --python-version $(python.version) --upgrade -t $(Build.SourcesDirectory)/distribution -r requirements.txt
+  displayName: 'Install dependencies to distribution folder'
+
+- script: |
+    pip install -r requirements_dev.txt
+  displayName: 'Install dev dependencies'
+
+# - script: |
+#    behave
+#   displayName: 'Run Behave tests'
+
+- script: |    # Script to run unit tests
+    python -m pytest --rootdir=$(Build.SourcesDirectory) -s $(Build.SourcesDirectory)/tests
+  displayName: 'Run Python unit tests'
+  env:
+    LOG_LEVEL: DEBUG
+    CLAIM_SUBMISSION_TABLE: slfdq-dms-claim-submission-submitted
+    AWS_REGION: us-east-1
+    GENERATE_CLAIM_NUMBER_API_ROLE: "arn:aws:iam::012345678901:user/test_user"
+    CLAIM_NUMBER_API_ADDRESS: "http://example.com"
+  
+- task: CopyFiles@2
+  inputs:
+    SourceFolder: '$(Build.SourcesDirectory)/app'
+    Contents: '**'
+    TargetFolder: '$(Build.SourcesDirectory)/distribution/app'
+    CleanTargetFolder: true
+    OverWrite: true
+
+- task: ArchiveFiles@2
+  inputs:
+    rootFolderOrFile: '$(Build.SourcesDirectory)/distribution'
+    includeRootFolder: false
+    archiveType: 'zip'
+    archiveFile: '$(Build.ArtifactStagingDirectory)/$(artifactName)-$(majorVersion).$(minorVersion).$(patchVersion).zip'
+    replaceExistingArchive: true
+
+- task: CopyFiles@2
+  inputs:
+      SourceFolders: '$(Build.SourcesDirectory)/tests'
+      Contents: '**'
+      TargetFolder: '$(Build.SourcesDirectory)/tests'
+      OverWrite: true
+
+- script: |
+    #!/bin/bash
+
+    # Specify the file path
+    file_path="$(Build.SourcesDirectory)/aws/template.yaml"
+
+    # Specify the string to search for and the replacement string
+    search_string="./claim-submission-business-service-api.zip"
+    replacement_string="./claim-submission-business-service-api-$(majorVersion).$(minorVersion).$(patchVersion).zip"
+
+    # Use sed to perform the replacement
+    sed -i "s|$search_string|$replacement_string|g" "$file_path"
+
+    echo "String replaced successfully."
+  displayName: 'Update template with versioned zip file'
+
+- task: CopyFiles@2
+  inputs:
+    SourceFolder: '$(Build.SourcesDirectory)/aws'
+    Contents: 'template.yaml'
+    TargetFolder: '$(Build.ArtifactStagingDirectory)'
+    OverWrite: true
+
+- task: CopyFiles@2
+  inputs:
+    SourceFolder: '$(Build.SourcesDirectory)/api-spec'
+    Contents: 'DQ.ClaimSubmission.Api.yaml'
+    TargetFolder: '$(Build.ArtifactStagingDirectory)'
+    OverWrite: true
+    
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'build'
+    publishLocation: 'Container'
+    

@@ -1,0 +1,693 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AWS Resources for claims submission api
+
+Parameters:
+  LogLevel:
+    Type: String
+    Description: Logging level for Lambda functions. Set one of the following DEBUG | INFO | WARNING | ERROR | CRITICAL
+    Default: INFO
+    AllowedValues:
+      - DEBUG
+      - INFO
+      - WARNING
+      - ERROR
+      - CRITICAL
+  StageName:
+    Type: String
+    Description: The name of the stage, e.g. "dev", "preprod", "prod"
+    Default: dev
+  SlfSecurityGroups:
+    Type: CommaDelimitedList
+    Description: Security Group for account
+    Default: give-SlfSecurityGroups
+  SlfSubnetIds:
+    Type: CommaDelimitedList
+    Description: SLF Subnets for use
+    Default: give-SlfSubnetIds
+  SlfVpceId:
+    Type: String
+    Description: VPC Private for account
+    Default: give-SlfVpceId
+  SlfClaimNumberApiRole:
+    Type: String
+    Description: Role to assume when calling claim number api
+    Default: give-SlfClaimNumberApiRole
+  SlfClaimNumberApiAddress:
+    Type: String
+    Description: Claim Number Generation API address
+    Default: give-SlfClaimNumberApiAddress
+  SlfGetClaimDomainServiceApiRole:
+    Type: String
+    Description: GetClaimDomainServiceAPIRole name
+    Default: give-GetClaimDomainServiceApiRole
+  SlfClaimApiAddress:
+    Type: String
+    Description: Claim Domain Service Api Address
+    Default: give-ClaimApiAddress
+  AssumingRoleArns:
+    Type: CommaDelimitedList
+    Description: ARNs for use in the role
+    Default: give-AssumingRoleArns
+  SlfClaimSubmissionTable:
+    Type: String
+    Description: Claim Submission DynamoDB table
+    Default: give-SlfClaimSubmissionTable
+  SlfBoomiApiKey:
+    Type: String
+    Description: Boomi API key for Documents API
+    Default: give-SlfBoomiApiKey
+  SlfDocApiAddress:
+    Type: String
+    Description: Documents endpoint address in boomi
+    Default: give-SlfTpeApiAddress
+  SlfPaperlessBoomiApiKey:
+    Type: String
+    Description: Boomi API key for Paperless API
+    Default: give-SlfPaperlessBoomiApiKey
+  SlfPaperlessApiAddress:
+    Type: String
+    Description: Paperless endpoint address in boomi
+    Default: give-SlfPaperlessApiAddress
+  SlfApiDomain:
+    Type: String
+    Description: Domain for NTLM user to call boomi
+    Default: give-SlfTpeApiDomain
+  SlfApiUsername:
+    Type: String
+    Description: Username for NTLM user to call boomi
+    Default: give-SlfTpeApiUsername
+  SlfApiPassword:
+    Type: String
+    Description: Password for the NTLM user to call boomi
+    Default: give-SlfTpeApiPassword
+  SlfBusinessUnit:
+    Type: String
+    Description: Business unit to use for boomi calls
+    Default: give-SlfTpeBusinessUnit
+  SlfDataHubBoomiApiKey:
+    Type: String
+    Description: Boomi API key for Datahub API
+    Default: give-SlfDataHubBoomiApiKey
+  SlfDataHubApiAddress:
+    Type: String
+    Description: Datahub api base address
+    Default: give-SlfDataHubApiAddress
+  CertificateBucket:
+    Type: String
+    Description: Bucket name for SSL certificates
+    Default: give-CertificateBucket
+  S3KMSKeyArn:
+    Type: String
+    Description: KMS Key ARN for S3
+    Default: give-S3KMSKeyArn
+  DynamoDBKMSKeyArn:
+    Type: String
+    Description: Key ARN for dynamo db
+  SlfMaxPageSize:
+    Type: String
+    Description: Bucket name for SSL certificates
+    Default: '1000'
+  DTTenant:
+    Type: String
+    Description: Dynatrace tenant id
+    Default: 3113fda1-be93-4d16-a6ac-fdc02bb8a640
+  DTClusterId:
+    Type: String
+    Description: Dynatrace cluster id
+    Default: "-70600433"
+  DTConnectionBaseUrl:
+    Type: String
+    Description: Dynatrace connection base Url
+    Default: https://10.83.71.30:9999
+  DTConnectionAuthToken:
+    Type: String
+    Description: Dynatrace connection auth token
+    Default: dt0a01.3113fda1-be93-4d16-a6ac-fdc02bb8a640.eb6cbc33f5b8a06a7e06a09ae917bdec90de43ea50cb527b1612d5ff36c89a91
+  DTOpenTelementryEnableIntegration:
+    Type: String
+    Description: Dynatrace open telemetry enable integration
+    Default: "true"
+  AwsLambdaExecWrapper:
+    Type: String
+    Description: AWS Lambda Exec Wrapper value
+    Default: /opt/dynatrace
+  ProviderEOBEndpoint:
+    Type: String
+    Description: Provider EOB Endpoint
+    Default: ProviderEOB
+  BenefitSummaryEndpoint:
+    Type: String
+    Description: Benefit Summary Endpoint
+    Default: v4/BenefitSummary
+  ClaimAttachmentEndpoint:
+    Type: String
+    Description: Claim Attachment Endpoint
+    Default: ClaimAttachment
+  DocumentEndpoint:
+    Type: String
+    Description: Document Endpoint
+    Default: Document
+  NGProviderEOBEndpoint:
+    Type: String
+    Description: Nextgen Provider Portal EOBs Endpoint
+    Default: NGProviderEOBs
+  PostmanRoleName:
+    Type: String
+    Description: Postman role name
+    Default: give-PostmanRoleName
+Globals:
+  Function:
+    Runtime: python3.11
+    MemorySize: 1769
+    Timeout: 30
+    Layers:
+      - arn:aws:lambda:us-east-1:725887861453:layer:Dynatrace_OneAgent_1_281_2_20231117-042835_python:1
+    VpcConfig:
+        SecurityGroupIds:
+          !Ref SlfSecurityGroups
+        SubnetIds:
+          !Ref SlfSubnetIds
+    Environment:
+      Variables:
+        LOG_LEVEL: !Ref LogLevel
+        CLAIM_SUBMISSION_TABLE: !Ref SlfClaimSubmissionTable
+        CLAIM_API_ADDRESS: !Ref SlfClaimApiAddress
+        GET_CLAIM_DOMAIN_SERVICE_API_ROLE: !Ref SlfGetClaimDomainServiceApiRole
+        GENERATE_CLAIM_NUMBER_API_ROLE: !Ref SlfClaimNumberApiRole
+        CLAIM_NUMBER_API_ADDRESS: !Ref SlfClaimNumberApiAddress
+        DOC_API_ADDRESS: !Ref SlfDocApiAddress
+        BUSINESS_UNIT: !Ref SlfBusinessUnit
+        DOC_BOOMI_API_KEY: !Ref SlfBoomiApiKey
+        DOC_API_USERNAME: !Ref SlfApiUsername
+        DOC_API_PASSWORD: !Ref SlfApiPassword
+        DATAHUB_BOOMI_API_KEY: !Ref SlfDataHubBoomiApiKey
+        DATAHUB_API_ADDRESS: !Ref SlfDataHubApiAddress
+        PAPERLESS_BOOMI_API_KEY: !Ref SlfPaperlessBoomiApiKey
+        PAPERLESS_API_ADDRESS: !Ref SlfPaperlessApiAddress
+        SSL_CERTS_S3_BUCKET: !Ref CertificateBucket
+        CLAIM_SEARCH_MAX_PAGE_SIZE: !Ref SlfMaxPageSize
+        AWS_LAMBDA_EXEC_WRAPPER: !Ref AwsLambdaExecWrapper
+        DT_TENANT: !Ref DTTenant
+        DT_CLUSTER_ID: !Ref DTClusterId
+        DT_CONNECTION_BASE_URL: !Ref DTConnectionBaseUrl
+        DT_CONNECTION_AUTH_TOKEN: !Ref DTConnectionAuthToken
+        DT_OPEN_TELEMETRY_ENABLE_INTEGRATION: !Ref DTOpenTelementryEnableIntegration
+        BENEFIT_SUMMARY_ENDPOINT: !Ref BenefitSummaryEndpoint
+        PROVIDER_EOB_ENDPOINT: !Ref ProviderEOBEndpoint
+        NG_PROVIDER_EOB_ENDPOINT: !Ref NGProviderEOBEndpoint
+        DOCUMENT_ENDPOINT: !Ref DocumentEndpoint
+        CLAIM_ATTACHMENT_ENDPOINT: !Ref ClaimAttachmentEndpoint
+
+Resources:
+  ClaimSubmissionBusinessServicesAPI:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: slfdq-aws-claim-submission-business-services-api
+      EndpointConfiguration:
+        Type: PRIVATE
+        VPCEndpointIds: !Split [ "|" , !Ref SlfVpceId ]
+      StageName: !Ref StageName
+      DefinitionBody:
+        Fn::Transform:
+          Name: AWS::Include
+          Parameters:
+            Location: DQ.ClaimSubmission.Api.yaml
+      Auth:
+        ResourcePolicy:
+          CustomStatements:
+            - Effect: Deny
+              Principal: '*'
+              Action: execute-api:Invoke
+              Resource: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*/*'
+              Condition:
+                StringNotEquals:
+                  aws:PrincipalArn: 
+                    - !GetAtt GetClaimSubmissionBusinessServiceApiConsumerRole.Arn
+                    - !GetAtt PostClaimSubmissionBusinessServiceApiConsumerRole.Arn
+                    - !Sub arn:aws:iam::${AWS::AccountId}:role/${PostmanRoleName}
+
+  ClaimSubmissionBusinessServicesAPIDeployment:
+    Type: 'AWS::ApiGateway::Deployment'
+    Properties:
+      RestApiId: !Ref ClaimSubmissionBusinessServicesAPI
+      Description: 'ClaimSubmissionBusinessServicesAPI deployment'
+  
+  SubmittedClaimSearchByClaimNumberFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Service layer function for submitted claim search by claim number function
+      FunctionName: slfdq-aws-submitted-claim-search-by-claim-number
+      CodeUri: ./claim-submission-business-service-api.zip
+      Handler: app/submitted_claim_search_by_claim_number.lambda_handler
+      Timeout: 30
+      Role: !GetAtt ClaimSubmissionBusinessServicesExecuteGet.Arn
+      Events:
+        GetSubmittedClaimByClaimNumber:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ClaimSubmissionBusinessServicesAPI
+            Path: /api/claim-submission/v1/business/{taxIdNumber}/claims/submitted/{claimNumber}
+            Method: GET
+  
+  SubmittedClaimSearchByTaxIdNumberFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Service layer function for submitted claim search by tax id number function
+      FunctionName: slfdq-aws-submitted-claim-search-by-tax-id-number
+      CodeUri: ./claim-submission-business-service-api.zip
+      Handler: app/submitted_claim_search_by_tax_id.lambda_handler
+      Timeout: 30
+      Role: !GetAtt ClaimSubmissionBusinessServicesExecuteGet.Arn
+      Events:
+        GetSubmittedClaimByTaxIdNumber:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ClaimSubmissionBusinessServicesAPI
+            Path: /api/claim-submission/v1/business/{taxIdNumber}/claims/submitted/
+            Method: GET
+  
+  AdjudicatedClaimSearchByTaxIdNumberFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Service layer function for adjudicated claim search by tax id number function
+      FunctionName: slfdq-aws-adjudicated-claim-search-by-tax-id-number
+      CodeUri: ./claim-submission-business-service-api.zip
+      Handler: app/adjudicated_claim_search_by_tax_id.lambda_handler
+      Timeout: 30
+      Role: !GetAtt ClaimSubmissionBusinessServicesExecuteGet.Arn
+      Events:
+        GetSubmittedClaimByTaxIdNumber:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ClaimSubmissionBusinessServicesAPI
+            Path: /api/claim-submission/v1/business/{taxIdNumber}/claims/adjudicated/
+            Method: GET
+
+  SubmittedClaimSearchByMemberProfileGuidFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Service layer function for submitted claim search by member profile guid function
+      FunctionName: slfdq-aws-submitted-claim-search-member-profile-guid
+      CodeUri: ./claim-submission-business-service-api.zip
+      Handler: app/submitted_claim_search_by_member_profile_guid.lambda_handler
+      Timeout: 30
+      Role: !GetAtt ClaimSubmissionBusinessServicesExecuteGet.Arn
+      Events:
+        GetSubmittedClaimByMemberProfileGuid:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ClaimSubmissionBusinessServicesAPI
+            Path: /api/claim-submission/v1/business/{taxIdNumber}/member/{memberProfileGuid}/claims/submitted/
+            Method: GET
+
+  CreateSubmittedClaimFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Service layer function for creating submitted claim function
+      FunctionName: slfdq-aws-create-submitted-claim
+      CodeUri: ./claim-submission-business-service-api.zip
+      Handler: app/submitted_claim_create.lambda_handler
+      Timeout: 60
+      Role: !GetAtt ClaimSubmissionBusinessServicesExecuteCreate.Arn
+      Events:
+        PostSubmittedClaim:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ClaimSubmissionBusinessServicesAPI
+            Path: /api/claim-submission/v1/business/{taxIdNumber}/claims/submitted/
+            Method: POST
+  
+  AdjudicatedClaimSearchByClaimNumberFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Service layer function for adjudicated claim search by claim number function
+      FunctionName: slfdq-aws-adjudicated-claim-search-by-claim-number
+      CodeUri: ./claim-submission-business-service-api.zip
+      Handler: app/adjudicated_claim_search_by_claim_number.lambda_handler
+      Timeout: 30
+      Role: !GetAtt ClaimSubmissionBusinessServicesExecuteGet.Arn
+      Events:
+        GetAdjudicatedClaimByClaimNumber:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ClaimSubmissionBusinessServicesAPI
+            Path: /api/claim-submission/v1/business/{taxIdNumber}/claims/adjudicated/{claimNumber}
+            Method: GET
+
+  AdjudicatedClaimSearchByClaimNumberNoTinFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Service layer function for adjudicated claim search by claim number function without TIN
+      FunctionName: slfdq-aws-adjudicated-claim-search-by-claim-number-no-tin
+      CodeUri: ./claim-submission-business-service-api.zip
+      Handler: app/adjudicated_claim_search_by_claim_number_no_tin.lambda_handler
+      Timeout: 30
+      Role: !GetAtt ClaimSubmissionBusinessServicesExecuteGet.Arn
+      Events:
+        GetAdjudicatedClaimByClaimNumberNoTin:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ClaimSubmissionBusinessServicesAPI
+            Path: /api/claim-submission/v1/claims/adjudicated/{claimNumber}
+            Method: GET
+        GetAdjudicatedClaimByClaimNumberNoTinSubgroupNumber:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ClaimSubmissionBusinessServicesAPI
+            Path: /api/claim-submission/v1/claims/adjudicated/{claimNumber}/access-level
+            Method: GET
+
+  AdjudicatedClaimGetAttachmentByClaimNumberFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Service layer function for getting document for an adjudicated claim
+      FunctionName: slfdq-aws-adjudicated-claim-get-document-by-claim-number
+      CodeUri: ./claim-submission-business-service-api.zip
+      Handler: app/adjudicated_claim_get_document_by_claim_number.lambda_handler
+      Timeout: 30
+      Role: !GetAtt ClaimSubmissionBusinessServicesExecuteGet.Arn
+      Events:
+        GetAdjudicatedClaimAttachmentByClaimNumber:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ClaimSubmissionBusinessServicesAPI
+            Path: /api/claim-submission/v1/business/{taxIdNumber}/claims/adjudicated/{claimNumber}/attachments/{fileName}
+            Method: GET
+  
+  AdjudicatedClaimGetAttachmentByClaimNumberNoTinFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Service layer function for getting document for an adjudicated claim with no tin
+      FunctionName: slfdq-aws-adjudicated-claim-get-document-by-claim-number-no-tin
+      CodeUri: ./claim-submission-business-service-api.zip
+      Handler: app/adjudicated_claim_get_document_by_claim_number_no_tin.lambda_handler
+      Timeout: 30
+      Role: !GetAtt ClaimSubmissionBusinessServicesExecuteGet.Arn
+      Events:
+        GetAdjudicatedClaimAttachmentByClaimNumberNoTin:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ClaimSubmissionBusinessServicesAPI
+            Path: /api/claim-submission/v1/claims/adjudicated/{claimNumber}/attachments/{fileName}
+            Method: GET
+  
+  AdjudicatedClaimGetAllAttachmentsByClaimNumberFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Service layer function for getting all attachments for an adjudicated claim
+      FunctionName: slfdq-aws-adjudicated-claim-get-all-attachments-by-claim-number
+      CodeUri: ./claim-submission-business-service-api.zip
+      Handler: app/adjudicated_claim_get_attachments_by_claim_number.lambda_handler
+      Timeout: 30
+      Role: !GetAtt ClaimSubmissionBusinessServicesExecuteGet.Arn
+      Events:
+        GetAdjudicatedClaimGetAllAttachmentsByClaimNumberFunction:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ClaimSubmissionBusinessServicesAPI
+            Path: /api/claim-submission/v1/business/{taxIdNumber}/claims/adjudicated/{claimNumber}/attachments
+            Method: GET
+  
+  AdjudicatedClaimGetEobByClaimNumberFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Service layer function for getting eob for an adjudicated claim
+      FunctionName: slfdq-aws-adjudicated-claim-get-eob-by-claim-number
+      CodeUri: ./claim-submission-business-service-api.zip
+      Handler: app/adjudicated_claim_get_eob_document.lambda_handler
+      Timeout: 30
+      Role: !GetAtt ClaimSubmissionBusinessServicesExecuteGet.Arn
+      Events:
+        GetAdjudicatedClaimAttachmentByClaimNumber:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ClaimSubmissionBusinessServicesAPI
+            Path: /api/claim-submission/v1/business/{taxIdNumber}/claims/adjudicated/{claimNumber}/checks/{checkNumber}
+            Method: GET
+
+  SearchSubmittedClaimsByDateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Service layer function for getting all submitted claims for a given date
+      FunctionName: slfdq-aws-submitted-claims-search-by-date
+      CodeUri: ./claim-submission-business-service-api.zip
+      Handler: app/submitted_claim_search_by_date.lambda_handler
+      Timeout: 30
+      Role: !GetAtt ClaimSubmissionBusinessServicesExecuteGet.Arn
+      Events:
+        GetSubmittedClaimsByDate:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ClaimSubmissionBusinessServicesAPI
+            Path: /api/claim-submission/v1/business/claims/report/{claimType}/{date}
+            Method: GET
+
+  AdjudicatedClaimSearchClientFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Service layer function for adjudicated claim search by claim number function
+      FunctionName: slfdq-aws-adjudicated-claim-search-client
+      CodeUri: ./claim-submission-business-service-api.zip
+      Handler: app/adjudicated_claim_search_client.lambda_handler
+      Timeout: 30
+      Role: !GetAtt ClaimSubmissionBusinessServicesExecuteGet.Arn
+      Events:
+        AdjudicatedClaimSearchClient:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ClaimSubmissionBusinessServicesAPI
+            Path: /api/claim-submission/v1/client-claims
+            Method: POST
+
+  AdjudicatedClaimGetAllDocumentsByClaimNumberFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Service layer function for getting all documents for an adjudicated claim
+      FunctionName: slfdq-aws-adjudicated-claim-get-all-documents-by-claim-number
+      CodeUri: ./claim-submission-business-service-api.zip
+      Handler: app/adjudicated_claim_get_documents_by_claim_number.lambda_handler
+      Timeout: 30
+      Role: !GetAtt ClaimSubmissionBusinessServicesExecuteGet.Arn
+      Events:
+        GetAdjudicatedClaimGetAllDocumentsByClaimNumberFunction:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ClaimSubmissionBusinessServicesAPI
+            Path: /api/claim-submission/v1/claims/adjudicated/{claimNumber}/documents
+            Method: GET
+            
+  GetClaimSubmissionBusinessServiceApiConsumerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: GetClaimSubmissionBusinessServiceApiConsumerRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Ref AssumingRoleArns
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  
+  GetClaimSubmissionBusinessServiceApiConsumerRolePolicy:
+    Type: AWS::IAM::Policy
+    Properties:  
+      PolicyName: GetClaimSubmissionBusinessServiceApiConsumerPolicy
+      PolicyDocument: 
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - execute-api:Invoke
+            Resource: !Join ['', [!Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:', !Ref ClaimSubmissionBusinessServicesAPI, '/*/GET/*']]
+      Roles: 
+        - !Ref GetClaimSubmissionBusinessServiceApiConsumerRole
+
+  PostClaimSubmissionBusinessServiceApiConsumerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: PostClaimSubmissionBusinessServiceApiConsumerRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Ref AssumingRoleArns
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  PostClaimSubmissionBusinessServiceApiConsumerRolePolicy:
+    Type: AWS::IAM::Policy
+    Properties:  
+      PolicyName: PostClaimSubmissionBusinessServiceApiConsumerPolicy
+      PolicyDocument: 
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - execute-api:Invoke
+            Resource: !Join ['', [!Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:', !Ref ClaimSubmissionBusinessServicesAPI, '/*/POST/*']]
+      Roles: 
+        - !Ref PostClaimSubmissionBusinessServiceApiConsumerRole
+
+  ClaimSubmissionBusinessServicesKmsKeyPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: ClaimSubmissionBusinessServicesKmsKeyPolicy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: Allow
+          Action:
+            - kms:Encrypt
+            - kms:Decrypt
+            - kms:GenerateDataKey
+          Resource:
+            - !Ref DynamoDBKMSKeyArn
+      Roles:
+        - !Ref ClaimSubmissionBusinessServicesExecuteCreate
+        - !Ref ClaimSubmissionBusinessServicesExecuteGet
+  
+  ClaimSubmissionBusinessServicesExecuteCreate:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ClaimSubmissionBusinessServicesExecuteCreate
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: "lambda.amazonaws.com"
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: TPEDynamoDBCrud
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:Get*
+                  - dynamodb:Update*
+                  - dynamodb:Delete*
+                  - dynamodb:PutItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGet*
+                  - dynamodb:BatchWrite*
+                Resource:
+                  - Fn::Sub:
+                    - "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${tableName}"
+                    - tableName: !Ref SlfClaimSubmissionTable
+                  - Fn::Sub:
+                    - "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${tableName}/index/*"
+                    - tableName: !Ref SlfClaimSubmissionTable
+        - PolicyName: TPEAllowClaimNumberRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource:
+                  - !Ref SlfClaimNumberApiRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  ClaimSubmissionBusinessServicesExecuteGet:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ClaimSubmissionBusinessServicesExecuteGet
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: "lambda.amazonaws.com"
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: TPEDynamoDBRead
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:Get*
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGet*
+                Resource:
+                  - Fn::Sub:
+                    - "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${tableName}"
+                    - tableName: !Ref SlfClaimSubmissionTable
+                  - Fn::Sub:
+                    - "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${tableName}/index/*"
+                    - tableName: !Ref SlfClaimSubmissionTable
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  UseSslS3BucketPolicy:
+    Type: AWS::IAM::Policy
+    Properties:  
+      PolicyName: UseSslS3BucketPolicy
+      PolicyDocument: 
+        Version: '2012-10-17'
+        Statement:
+          - Sid: S3ReadPolicy
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:ListBucket
+              - s3:GetBucketLocation
+              - s3:GetObjectVersion
+              - s3:GetLifecycleConfiguration
+            Resource:
+              - Fn::Sub:
+                - "arn:${AWS::Partition}:s3:::${bucketName}"
+                - bucketName: !Ref CertificateBucket
+              - Fn::Sub:
+                - "arn:${AWS::Partition}:s3:::${bucketName}/*"
+                - bucketName: !Ref CertificateBucket
+          - Sid: KmsEncryptDecryptPolicy
+            Effect: Allow
+            Action:
+              - kms:Decrypt
+            Resource:
+              - !Ref S3KMSKeyArn
+      Roles: 
+        - !Ref ClaimSubmissionBusinessServicesExecuteGet
+
+Outputs:
+  SubmittedClaimSearchByClaimNumberFunctionARN:
+    Description: "Submitted Claim Search By Claim Number Function ARN"
+    Value: !GetAtt SubmittedClaimSearchByClaimNumberFunction.Arn
+  
+  SubmittedClaimSearchByTaxIdNumberFunctionARN:
+    Description: "Submitted Claim Search By Tax Id Number Function ARN"
+    Value: !GetAtt SubmittedClaimSearchByTaxIdNumberFunction.Arn
+
+  SubmittedClaimSearchByMemberProfileGuidFunctionARN:
+    Description: "Submitted Claim Search By Member Profile Guid Function ARN"
+    Value: !GetAtt SubmittedClaimSearchByMemberProfileGuidFunction.Arn
+
+  CreateSubmittedClaimFunctionARN:
+    Description: "Submitted Claim Create Function ARN"
+    Value: !GetAtt CreateSubmittedClaimFunction.Arn
+
+  AdjudicatedClaimSearchByClaimNumberFunction:
+    Description: "Adjudicated Claim Search By Claim Number SearchARN"
+    Value: !GetAtt AdjudicatedClaimSearchByClaimNumberFunction.Arn
+
+  AdjudicatedClaimSearchByClaimNumberNoTinFunction:
+    Description: "Adjudicated Claim Search By Claim Number SearchARN without TIN"
+    Value: !GetAtt AdjudicatedClaimSearchByClaimNumberNoTinFunction.Arn
